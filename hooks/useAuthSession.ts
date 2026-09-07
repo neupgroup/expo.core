@@ -1,7 +1,12 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 
-import { AuthSession, getAuthSession } from '@/lib/auth';
+import { getAuthAccountToken } from '#/core/auth/session';
+type AuthSession = { token: string };
+async function getAuthSession(): Promise<AuthSession | null> {
+  const token = await getAuthAccountToken();
+  return token ? { token } : null;
+}
 
 export function useAuthSession() {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -16,7 +21,7 @@ export function useAuthSession() {
         if (!active) return;
         setSession(storedSession);
         setIsLoading(false);
-      });
+      }).catch(() => { if (active) { setSession(null); setIsLoading(false); } });
 
       return () => {
         active = false;

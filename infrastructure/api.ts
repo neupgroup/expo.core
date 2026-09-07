@@ -2,7 +2,10 @@ const API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || 'https://neupgroup
 
 export type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
+export type ApiQuery = Record<string, string | number | boolean | null | undefined>;
+
 export type ApiResponse<T> = {
+  headers: Headers;
   ok: boolean;
   status: number;
   body: T;
@@ -10,6 +13,7 @@ export type ApiResponse<T> = {
 
 export type RunApiOptions = {
   baseUrl: string;
+  fetcher?: (input: string, init?: RequestInit) => Promise<Response>;
   path: string;
   method?: ApiMethod;
   query?: Record<string, string | number | boolean | null | undefined>;
@@ -20,11 +24,7 @@ export type RunApiOptions = {
 };
 
 export async function runApi<T = unknown>(options: RunApiOptions): Promise<ApiResponse<T>> {
-  const query = Object.entries(options.query ?? {})
-    .filter(([, value]) => value !== undefined && value !== null)
-    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
-    .join('&');
-  const url = `${options.baseUrl.replace(/\/$/, '')}${options.path}${query ? `?${query}` : ''}`;
+  const url = createApiUrl(options.baseUrl, options.path, options.query);
   const headers = new Headers(options.headers);
   if (options.bearerToken) headers.set('Authorization', `Bearer ${options.bearerToken}`);
   const cookies = Object.entries(options.cookies ?? {}).filter(([, value]) => value);
@@ -33,15 +33,15 @@ export async function runApi<T = unknown>(options: RunApiOptions): Promise<ApiRe
   const method = options.method ?? 'GET';
   let body: BodyInit | undefined;
   if (options.body !== undefined && method !== 'GET') {
-    if (typeof FormData !== 'undefined' && options.body instanceof FormData) body = options.body;
+    if (typeof options.body === 'string' || (typeof FormData !== 'undefined' && options.body instanceof FormData) || (typeof Blob !== 'undefined' && options.body instanceof Blob) || options.body instanceof ArrayBuffer || ArrayBuffer.isView(options.body) || options.body instanceof URLSearchParams) body = options.body as BodyInit;
     else {
       headers.set('Content-Type', headers.get('Content-Type') ?? 'application/json');
       body = JSON.stringify(options.body);
     }
   }
-  const response = await fetch(url, { method, headers, body });
+  const response = await (options.fetcher ?? fetchApi)(url, { method, headers, body });
   const bodyResult = await response.json().catch(() => null) as T;
-  return { ok: response.ok, status: response.status, body: bodyResult };
+  return { ok: response.ok, status: response.status, body: bodyResult, headers: response.headers };
 }
 
 export async function api<T = unknown>(
@@ -70,4 +70,21 @@ export async function api<T = unknown>(
   const result = await response.json().catch(() => null) as T;
   if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
   return result;
+}
+
+/** Join absolute or relative paths and merge query parameters without duplicating origins. */
+export function createApiUrl(baseUrl: string, path: string, query: ApiQuery = {}): string {
+  const absolute = /^https?:\/\//i.test(path) ? path : `${baseUrl.replace(/\/$/, '')}${path.startsWith('/') || !baseUrl ? '' : '/'}${path}`;
+  const [beforeHash, hash] = absolute.split('#', 2);
+  const [pathname, search] = beforeHash.split('?', 2);
+  const params = new URLSearchParams(search);
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== null && value !== undefined) params.set(key, String(value));
+  }
+  const encoded = params.toString();
+  return `${pathname}${encoded ? `?${encoded}` : ''}${hash === undefined ? '' : `#${hash}`}`;
+}
+
+export function fetchApi(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+  return fetch(input, init);
 }

@@ -52,6 +52,16 @@ export function initializeEstateDatabase() {
       createdOn TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS auth_events (
+      id TEXT PRIMARY KEY NOT NULL,
+      accountId TEXT,
+      connectionId TEXT,
+      event TEXT NOT NULL,
+      refreshBy TEXT,
+      expiresOn TEXT,
+      occurredOn TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS referrals (
       id TEXT PRIMARY KEY NOT NULL,
       type TEXT NOT NULL,
@@ -106,6 +116,26 @@ export async function saveAuthenticatedAccount(account: { accountId: string; acc
 
 export function getStoredSelfAccount() {
   return estateDatabase.getFirstSync<{ accountId: string; displayImage: string | null; type: string }>('SELECT accountId, displayImage, type FROM accounts WHERE isSelf = 1 ORDER BY loadedOn DESC LIMIT 1') ?? null;
+}
+
+export function recordAuthEvent(event: {
+  accountId?: string | null;
+  connectionId?: string | null;
+  event: 'signed_in' | 'signed_out';
+  refreshBy?: string | null;
+  expiresOn?: string | null;
+}) {
+  estateDatabase.runSync(
+    `INSERT INTO auth_events (id, accountId, connectionId, event, refreshBy, expiresOn, occurredOn)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    event.accountId ?? null,
+    event.connectionId ?? null,
+    event.event,
+    event.refreshBy ?? null,
+    event.expiresOn ?? null,
+    new Date().toISOString(),
+  );
 }
 
 export function saveVisitedProperty(property: Record<string, any>) {

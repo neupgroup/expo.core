@@ -1,4 +1,4 @@
-import { createApiUrl, type ApiQuery } from '@/neup/core/infrastructure/api';
+import { createApiUrl, type ApiQuery } from '@neup/core/infrastructure/api';
 
 export class UrlBuilder {
   private base: string;

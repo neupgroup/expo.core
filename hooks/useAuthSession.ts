@@ -1,7 +1,7 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 
-import { getAuthAccountToken } from '@/neup/core/auth/session';
+import { getAuthAccountToken } from '@neup/core/auth/session';
 type AuthSession = { token: string };
 async function getAuthSession(): Promise<AuthSession | null> {
   const token = await getAuthAccountToken();

@@ -1,4 +1,4 @@
-import { runApi } from '@/neup/core/infrastructure/api';
+import { runApi } from '@neup/core/infrastructure/api';
 
 export type AuthenticatedProfile = {
   accountId: string;
